@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	. "monitoring/internal/globals"
+
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
@@ -18,7 +20,7 @@ type LoginUserEndpoint struct {
 }
 
 func NewLoginUserEndpoint() *LoginUserEndpoint {
-	var loginuc useruc.LoginUC = useruc.LoginUC{LoginRepo: userrepo.LoginRepo{}}
+	var loginuc useruc.LoginUC = useruc.LoginUC{LoginRepo: userrepo.LoginRepo{DB: GlobalPG}}
 	return &LoginUserEndpoint{
 		LoginUC: &loginuc,
 	}
@@ -35,9 +37,9 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 	}
 
 	// Set custom claims
-	var claims *LoginUserEndpoint
+	var LUE *LoginUserEndpoint
 	if loginuc.Role == 0 {
-		claims = &LoginUserEndpoint{
+		LUE = &LoginUserEndpoint{
 			loginuc.Username,
 			true,
 			jwt.RegisteredClaims{
@@ -46,7 +48,7 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 			nil,
 		}
 	} else {
-		claims = &LoginUserEndpoint{
+		LUE = &LoginUserEndpoint{
 			loginuc.Username,
 			false,
 			jwt.RegisteredClaims{
@@ -57,7 +59,7 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 	}
 
 	// Create token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, LUE)
 
 	// Generate encoded token and send it as response.
 	t, err := token.SignedString([]byte("secret"))

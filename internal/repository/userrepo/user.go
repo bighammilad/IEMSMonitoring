@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"monitoring/internal/model"
+	hashPass "monitoring/pkg/hashPass"
 	"monitoring/pkg/postgres"
 )
 
 type IUser interface {
-	Register(ctx context.Context, username, password string, role int) (ok bool, err error)
-	Update(ctx context.Context, username, password string, role int) (ok bool, err error)
+	Register(ctx context.Context, username, hashPass string, role int) (ok bool, err error)
+	Update(ctx context.Context, username, hashPass string, role int) (ok bool, err error)
 }
 
 type UserRepo struct {
 	DB *postgres.Postgres
 }
 
-func (ru *UserRepo) Register(ctx context.Context, username, password string, role int) (ok bool, err error) {
+func (ru *UserRepo) Register(ctx context.Context, username, hashPass string, role int) (ok bool, err error) {
 
 	ok, err = ru.checkUsername(ctx, username)
 	if err != nil {
@@ -24,7 +25,7 @@ func (ru *UserRepo) Register(ctx context.Context, username, password string, rol
 	}
 
 	if ok {
-		user := model.UserRegister{Username: username, Password: password, Role: role}
+		user := model.UserRegister{Username: username, Password: hashPass, Role: role}
 		err := ru.addUser(ctx, user)
 		if err != nil {
 			return false, err
@@ -34,15 +35,15 @@ func (ru *UserRepo) Register(ctx context.Context, username, password string, rol
 	return
 }
 
-func (ru *UserRepo) Update(ctx context.Context, username, password string, role int) (ok bool, err error) {
+func (ru *UserRepo) Update(ctx context.Context, username, hashPass string, role int) (ok bool, err error) {
 
-	ok, err = ru.checkUsername(ctx, username)
+	ok, err = ru.checkUserPass(ctx, username, hashPass)
 	if err != nil {
 		return ok, err
 	}
 
 	if ok {
-		user := model.UserUpdate{Username: username, Password: password, Role: role}
+		user := model.UserUpdate{Username: username, Password: hashPass, Role: role}
 		err := ru.updateUser(ctx, user)
 		if err != nil {
 			return false, err
@@ -54,8 +55,7 @@ func (ru *UserRepo) Update(ctx context.Context, username, password string, role 
 
 func (ru *UserRepo) checkUsername(ctx context.Context, username string) (ok bool, err error) {
 
-	// q := `select count(*) from users where username=$1;`
-	q := `select 1`
+	q := `select count(*) from users where username=$1;`
 	rows, err := ru.DB.QueryContext(ctx, q)
 	if err != nil {
 		return false, err
@@ -78,6 +78,36 @@ func (ru *UserRepo) checkUsername(ctx context.Context, username string) (ok bool
 
 	if len(users) > 0 {
 		return false, errors.New("this username is already taken")
+	}
+
+	return true, nil
+}
+
+func (ru *UserRepo) checkUserPass(ctx context.Context, username, password string) (ok bool, err error) {
+
+	q := `select count(*) from users where username=$1;`
+	rows, err := ru.DB.QueryContext(ctx, q)
+	if err != nil {
+		return false, err
+	}
+
+	var user model.UserUpdate
+	defer rows.Close()
+	for rows.Next() {
+		var entry model.UserUpdate
+		err := rows.Scan(
+			&entry.Username,
+			&entry.Password,
+			&entry.Role,
+		)
+		if err != nil {
+			return false, err
+		}
+		user = entry
+	}
+
+	if user.Username != username || hashPass.CheckPasswordHash(password, user.Password) {
+		return false, errors.New("username or password isn't match")
 	}
 
 	return true, nil

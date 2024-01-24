@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"monitoring/internal/model"
+	"monitoring/pkg/postgres"
 )
 
 type ILoginRepo interface {
@@ -12,6 +13,7 @@ type ILoginRepo interface {
 }
 
 type LoginRepo struct {
+	DB postgres.IPostgres
 }
 
 func (lr *LoginRepo) Get(ctx context.Context, username, password string) (user model.LoginResult, err error) {
@@ -31,8 +33,22 @@ func (lr *LoginRepo) Get(ctx context.Context, username, password string) (user m
 
 func (lr *LoginRepo) getUserID(ctx context.Context, username string) (int, error) {
 
-	if username == "jon" {
-		return 12, nil
+	q := `SELECT id FROM users WHERE username = $1`
+	row, err := lr.DB.QueryContext(ctx, q, username)
+	if err != nil {
+		return -1, err
+	}
+	defer row.Close()
+	var userId int
+	for row.Next() {
+		err = row.Scan(&userId)
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	if userId > -1 {
+		return userId, nil
 	}
 
 	return -1, errors.New("user not found")
@@ -40,16 +56,25 @@ func (lr *LoginRepo) getUserID(ctx context.Context, username string) (int, error
 
 func (lr *LoginRepo) checkUserPass(ctx context.Context, userId int, password string) (user model.LoginResult, err error) {
 
-	// get user from db
-	var testUser model.LoginResult
-	testUser.ID = userId
-	testUser.Username = "jon"
-	testUser.Password = "123"
-	testUser.Role = 0
+	q := `SELECT id, username, password, role FROM users WHERE id = $1`
 
-	if userId != testUser.ID && testUser.Password != password {
+	rows, err := lr.DB.QueryContext(ctx, q, userId)
+	if err != nil {
+		return model.LoginResult{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&user.ID, &user.Username, &user.Password, &user.Role)
+		if err != nil {
+			return model.LoginResult{}, err
+		}
+	}
+
+	if userId != user.ID || user.Password != password {
 		return model.LoginResult{}, errors.New("user/password is wrong")
 	}
 
-	return testUser, nil
+	return user, nil
 }
+
+// sundhar

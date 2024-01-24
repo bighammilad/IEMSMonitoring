@@ -3,6 +3,7 @@ package useruc
 import (
 	"context"
 	"monitoring/internal/repository/userrepo"
+	hashPass "monitoring/pkg/hashPass"
 )
 
 type IRegisterUserUsecase interface {
@@ -16,26 +17,13 @@ type UserUsecase struct {
 
 func (ruu *UserUsecase) RegisterUser(ctx context.Context, username, password string, role int) (ok bool, err error) {
 
-	ok, err = ruu.Repo.Register(ctx, username, password, role)
+	hashPass, err := hashPass.HashPassword(password)
 	if err != nil {
-		return
+		return false, err
 	}
-	if !ok {
-		return
+	ok, err = ruu.Repo.Register(ctx, username, hashPass, role)
+	if err != nil {
+		return false, err
 	}
-
-	// Add user
-	ok, err = ruu.Repo.Register(ctx, username, password, role)
-
-	return
+	return ok, err
 }
-
-// func (ruu *RegisterUserUsecase) CheckUsername(ctx context.Context, username string) (ok bool, err error) {
-
-// 	ok, err = ruu.Repo.CheckUsername(ctx, username)
-// 	if err != nil {
-// 		return ok, err
-// 	}
-
-// 	return ok, nil
-// }

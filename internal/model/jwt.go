@@ -5,7 +5,7 @@ import (
 )
 
 type JwtCustomClaims struct {
-	Name  string `json:"name"`
-	Admin bool   `json:"admin"`
-	jwt.RegisteredClaims
+	Name                 string `json:"name,omitempty"`
+	Admin                bool   `json:"admin,omitempty"`
+	jwt.RegisteredClaims `json:"registered_claims,omitempty"`
 }
