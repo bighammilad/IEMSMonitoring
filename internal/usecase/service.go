@@ -29,6 +29,18 @@ func (su *ServicesUsecase) Get(ctx context.Context, service model.Service) (serv
 	name := service.Name
 	id := service.ID
 
+	// // Check if a user has access to a service
+	// hasAccess := func(user model.User, service model.Service) bool {
+	// 	if user.AccessLevel == 0 {
+	// 		return true
+	// 	}
+	// 	for _, allowedUser := range service.AllowedUsers {
+	// 		if allowedUser == user.Username {
+	// 			return true
+	// 		}
+	// 	}
+	// 	return false
+	// }
 	switch {
 	case name != "":
 		serviceRes, err = su.ServicesRepo.GetServiceByName(ctx, service)
@@ -37,6 +49,8 @@ func (su *ServicesUsecase) Get(ctx context.Context, service model.Service) (serv
 	default:
 		return model.Service{}, errors.New("id or name must be passed")
 	}
+
+	// "sql: Scan error on column index 3, name \"header\": unsupported Scan, storing driver.Value type []uint8 into type *map[string]string"
 
 	return serviceRes, err
 }

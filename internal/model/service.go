@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type Service struct {
@@ -13,6 +15,7 @@ type Service struct {
 	Body          map[string]interface{} `json:"body,omitempty"`
 	AccessLevel   AccessLevel            `json:"access_level,omitempty"`
 	ExecutionTime time.Duration          `json:"execution_time,omitempty"`
+	AllowedUsers  pq.StringArray
 }
 
 type ErrorReport struct {

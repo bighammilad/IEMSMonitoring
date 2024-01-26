@@ -17,7 +17,7 @@ type LoginUC struct {
 
 func (l *LoginUC) Login(ctx context.Context, username, password string) (*LoginUC, error) {
 
-	user, err := l.LoginRepo.Get(ctx, username, password)
+	user, err := l.LoginRepo.Auth(ctx, username, password)
 	if err != nil {
 		return &LoginUC{}, err
 	}

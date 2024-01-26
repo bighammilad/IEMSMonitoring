@@ -6,6 +6,10 @@ import (
 	"monitoring/internal/delivery/rest/endpoints"
 	"monitoring/internal/delivery/rest/endpoints/userendpoint"
 	"monitoring/internal/model"
+	"monitoring/internal/repository"
+	"monitoring/internal/usecase"
+
+	. "monitoring/internal/globals"
 
 	"monitoring/pkg/postgres"
 	"net/http"
@@ -41,17 +45,21 @@ func New() (r *Rest, err error) {
 	}
 	restericted.Use(echojwt.WithConfig(config))
 
+	// url: localhost:8090/panel
 	restericted.GET("", restricted)
 	registerUsr := userendpoint.NewRegisterUser()
-	restericted.POST("/user/register", registerUsr.RegisterUser)
+	restericted.POST("/user/register", registerUsr.RegisterUser) // url: localhost:8090/panel/user/register
 	updateUsr := userendpoint.NewRegisterUser()
-	restericted.POST("/user/update", updateUsr.UpdateUser)
+	restericted.POST("/user/update", updateUsr.UpdateUser) // url: localhost:8090/panel/user/update
 
-	service := endpoints.NewServicesEndpoints()
-	restericted.POST("/service/add", service.AddService)
+	serviceRepo := repository.ServicesRepository{Pg: GlobalPG}
+	srvUC := usecase.ServicesUsecase{ServicesRepo: serviceRepo}
+	service := endpoints.NewServicesEndpoints(srvUC)
+	restericted.GET("/service/get", service.GetService)  // url: localhost:8090/panel/service/get
+	restericted.POST("/service/add", service.AddService) // url: localhost:8090/panel/service/add
 
-	e.GET("/demo", demo)
-	e.GET("/test", test, echojwt.WithConfig(config))
+	e.GET("/demo", demo)                             // url: localhost:8090/demo
+	e.GET("/test", test, echojwt.WithConfig(config)) // url: localhost:8090/test
 
 	return
 }

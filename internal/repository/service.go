@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"monitoring/internal/model"
 	"monitoring/pkg/postgres"
 )
@@ -15,40 +17,95 @@ type IServicesRepository interface {
 	List(ctx context.Context) ([]model.Service, error)
 	Update(ctx context.Context, service model.Service) error
 	Delete(ctx context.Context, service model.Service) error
+	GetServicesForUser(ctx context.Context, userID int) ([]string, error)
 }
 
 type ServicesRepository struct {
-	DB *postgres.Postgres
+	Pg postgres.IPostgres
+}
+
+var bodyHeader_deserializer = func(header, body string) (map[string]string, map[string]interface{}, error) {
+	var headerMap map[string]string
+	err := json.Unmarshal([]byte(header), &headerMap)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var bodyMap map[string]interface{}
+	err = json.Unmarshal([]byte(body), &bodyMap)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return headerMap, bodyMap, nil
 }
 
 func (sr *ServicesRepository) Add(ctx context.Context, service model.Service) error {
-
-	q := `INSERT INTO services (name, address, method, header, body, accesslevel, executiontime) VALUES ($1, $2, $3, $4, $5, $6, $7)`
-
-	_, err := sr.DB.ExecContext(ctx, q, service)
+	_, err := sr.Pg.ExecContext(ctx, `
+		INSERT INTO services (name, address, method, header, body,  access_level, execution_time, allowed_users)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, service.Name, service.Address, service.Method, service.Header, service.Body,
+		service.AccessLevel, service.ExecutionTime, service.AllowedUsers)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	return nil
 }
 
+func (sr *ServicesRepository) GetServicesForUser(ctx context.Context, userID int) ([]string, error) {
+	var services []string
+	rows, err := sr.Pg.QueryContext(ctx, `
+		SELECT s.name
+		FROM services s
+		JOIN users u ON u.access_level = s.access_level
+		WHERE u.id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var serviceName string
+		err := rows.Scan(&serviceName)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, serviceName)
+	}
+
+	return services, nil
+}
+
 func (sr *ServicesRepository) GetServiceByName(ctx context.Context, service model.Service) (serviceRes model.Service, err error) {
 
-	q := `SELECT * FROM services WHERE name = $1`
+	q := `SELECT name,address,method,header,body,access_level,execution_time,allowed_users FROM services WHERE name = $1 order by id asc limit 1`
 
-	rows, err := sr.DB.QueryContext(ctx, q, service.Name)
+	rows, err := sr.Pg.QueryContext(ctx, q, service.Name)
 	if err != nil {
 		return model.Service{}, err
 	}
 
-	defer rows.Close()
+	var header, body string
 	for rows.Next() {
-		err := rows.Scan(&serviceRes.Name, &serviceRes.Address, &serviceRes.Method, &serviceRes.Header, &serviceRes.Body, &serviceRes.AccessLevel, &serviceRes.ExecutionTime)
+		var service model.Service
+		err := rows.Scan(
+			&service.Name, &service.Address, &service.Method,
+			&header, &body,
+			&service.AccessLevel, &service.ExecutionTime, &service.AllowedUsers,
+		)
 		if err != nil {
-			return model.Service{}, err
+			log.Fatal(err)
 		}
+		serviceRes = service
 	}
+
+	h, b, err := bodyHeader_deserializer(header, body)
+	if err != nil {
+		return model.Service{}, err
+	}
+	serviceRes.Header = h
+	serviceRes.Body = b
 
 	return serviceRes, nil
 }
@@ -57,7 +114,7 @@ func (sr *ServicesRepository) GetServiceById(ctx context.Context, service model.
 
 	q := `SELECT * FROM services WHERE id = $1`
 
-	rows, err := sr.DB.QueryContext(ctx, q, service.ID)
+	rows, err := sr.Pg.QueryContext(ctx, q, service.ID)
 	if err != nil {
 		return model.Service{}, err
 	}
@@ -76,7 +133,7 @@ func (sr *ServicesRepository) GetServiceById(ctx context.Context, service model.
 func (sr *ServicesRepository) List(ctx context.Context) (services []model.Service, err error) {
 	q := `SELECT * FROM services`
 
-	rows, err := sr.DB.QueryContext(ctx, q)
+	rows, err := sr.Pg.QueryContext(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +222,7 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 		}
 		values = append(values, serviceName)
 
-		_, err := sr.DB.ExecContext(ctx, q, values...)
+		_, err := sr.Pg.ExecContext(ctx, q, values...)
 		if err != nil {
 			return err
 		}
@@ -203,7 +260,7 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 		}
 		values = append(values, serviceId)
 
-		_, err := sr.DB.ExecContext(ctx, q, values...)
+		_, err := sr.Pg.ExecContext(ctx, q, values...)
 		if err != nil {
 			return err
 		}
@@ -225,12 +282,12 @@ func (sr *ServicesRepository) Delete(ctx context.Context, service model.Service)
 
 	switch {
 	case name != "":
-		_, err := sr.DB.ExecContext(ctx, qByName, service.Name)
+		_, err := sr.Pg.ExecContext(ctx, qByName, service.Name)
 		if err != nil {
 			return err
 		}
 	case id != 0:
-		_, err := sr.DB.ExecContext(ctx, qById, service.ID)
+		_, err := sr.Pg.ExecContext(ctx, qById, service.ID)
 		if err != nil {
 			return err
 		}

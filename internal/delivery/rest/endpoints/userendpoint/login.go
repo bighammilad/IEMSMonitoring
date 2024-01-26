@@ -13,10 +13,11 @@ import (
 )
 
 type LoginUserEndpoint struct {
-	Name  string `json:"name"`
-	Admin bool   `json:"admin"`
+	Name  string `json:"name,omitempty"`
+	Admin bool   `json:"admin,omitempty"`
+	Role  int    `json:"role,omitempty"`
 	jwt.RegisteredClaims
-	LoginUC useruc.ILogin
+	LoginUC useruc.ILogin `json:"login_uc,omitempty"`
 }
 
 func NewLoginUserEndpoint() *LoginUserEndpoint {
@@ -42,6 +43,7 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 		LUE = &LoginUserEndpoint{
 			loginuc.Username,
 			true,
+			loginuc.Role,
 			jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
 			},
@@ -51,6 +53,7 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 		LUE = &LoginUserEndpoint{
 			loginuc.Username,
 			false,
+			loginuc.Role,
 			jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
 			},

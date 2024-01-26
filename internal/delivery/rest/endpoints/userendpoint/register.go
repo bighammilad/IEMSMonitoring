@@ -23,11 +23,24 @@ func (lue *UserEndpoint) RegisterUser(c echo.Context) error {
 	password := c.FormValue("password")
 	role := c.FormValue("role")
 
+	if username == "" || password == "" || role == "" {
+		return errors.New("bad request")
+	}
+
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
+	roleId, _ := strconv.Atoi(role)
+
 	if claims.Admin {
-		accessLevel, _ := strconv.Atoi(role)
-		lue.UserUC.Repo.Register(c.Request().Context(), username, password, accessLevel)
+		_ = jwt.NewWithClaims(jwt.SigningMethodES256,
+			jwt.MapClaims{
+				"role": roleId,
+			})
+		// s, err := t.SignedString([]byte("Secret"))
+		// if err != nil {
+		// 	return err
+		// }
+		lue.UserUC.Repo.Register(c.Request().Context(), username, password, roleId)
 	} else {
 		return errors.New("Forbidden")
 	}

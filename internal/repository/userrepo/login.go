@@ -8,22 +8,23 @@ import (
 )
 
 type ILoginRepo interface {
-	Get(ctx context.Context, username string) (user model.LoginResult, err error)
+	Auth(ctx context.Context, username string) (user model.LoginResult, err error)
 	getUserID(ctx context.Context, username string) (int, error)
+	auth(ctx context.Context, userId int, password string) (user model.LoginResult, err error)
 }
 
 type LoginRepo struct {
 	DB postgres.IPostgres
 }
 
-func (lr *LoginRepo) Get(ctx context.Context, username, password string) (user model.LoginResult, err error) {
+func (lr *LoginRepo) Auth(ctx context.Context, username, password string) (user model.LoginResult, err error) {
 
 	userId, err := lr.getUserID(ctx, username)
 	if err != nil {
 		return model.LoginResult{}, err
 	}
 
-	user, err = lr.checkUserPass(ctx, userId, password)
+	user, err = lr.auth(ctx, userId, password)
 	if err != nil {
 		return model.LoginResult{}, err
 	}
@@ -54,7 +55,7 @@ func (lr *LoginRepo) getUserID(ctx context.Context, username string) (int, error
 	return -1, errors.New("user not found")
 }
 
-func (lr *LoginRepo) checkUserPass(ctx context.Context, userId int, password string) (user model.LoginResult, err error) {
+func (lr *LoginRepo) auth(ctx context.Context, userId int, password string) (user model.LoginResult, err error) {
 
 	q := `SELECT id, username, password, role FROM users WHERE id = $1`
 
