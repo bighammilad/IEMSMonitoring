@@ -232,12 +232,12 @@ func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Serv
 	method := c.FormValue("method")
 	header := c.FormValue("header")
 	body := c.FormValue("body")
-	accesslevel := c.FormValue("accesslevel")
-	executiontime := c.FormValue("executiontime")
-	allowedusers := c.FormValue("allowedusers")
+	accesslevel := c.FormValue("access_level")
+	executiontime := c.FormValue("execution_time")
+	allowedusers := c.FormValue("allowed_users")
 
 	// check for empty params
-	if name == "" && accesslevel == "" {
+	if name == "" || accesslevel == "" {
 		return model.Service{}, errors.New("service name & accesslevel must be filled")
 	}
 	if address == "" && method == "" && header == "" && body == "" && executiontime == "" {

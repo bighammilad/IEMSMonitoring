@@ -28,19 +28,6 @@ func (su *ServicesUsecase) Get(ctx context.Context, service model.Service) (serv
 	// check id or name has been passed
 	name := service.Name
 	id := service.ID
-
-	// // Check if a user has access to a service
-	// hasAccess := func(user model.User, service model.Service) bool {
-	// 	if user.AccessLevel == 0 {
-	// 		return true
-	// 	}
-	// 	for _, allowedUser := range service.AllowedUsers {
-	// 		if allowedUser == user.Username {
-	// 			return true
-	// 		}
-	// 	}
-	// 	return false
-	// }
 	switch {
 	case name != "":
 		serviceRes, err = su.ServicesRepo.GetServiceByName(ctx, service)
