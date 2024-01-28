@@ -3,12 +3,17 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
+	. "monitoring/internal/globals"
 	"monitoring/internal/model"
+	"monitoring/internal/repository"
+	"monitoring/internal/repository/userrepo"
 	"monitoring/internal/usecase"
+	"monitoring/internal/usecase/useruc"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
@@ -18,9 +23,12 @@ type ServicesEndpoints struct {
 	ServicesUC usecase.ServicesUsecase
 }
 
-func NewServicesEndpoints(srvUC usecase.ServicesUsecase) *ServicesEndpoints {
+func NewServicesEndpoints() *ServicesEndpoints {
+	var serviceuc usecase.ServicesUsecase = usecase.ServicesUsecase{
+		ServicesRepo: repository.ServicesRepository{DB: GlobalPG},
+		Useruc:       useruc.UserUsecase{DB: &userrepo.UserRepo{DB: GlobalPG}}}
 	return &ServicesEndpoints{
-		ServicesUC: srvUC,
+		ServicesUC: serviceuc,
 	}
 }
 
@@ -28,7 +36,7 @@ func (se *ServicesEndpoints) ListServices(c echo.Context) error {
 
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
-	if !(claims.RoleId > 1) {
+	if !claims.Admin {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
@@ -72,7 +80,7 @@ func (se *ServicesEndpoints) UpdateService(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	service, err := se.checkGetParams(c)
+	service, err := se.checkPostParams(c)
 	if err != nil {
 		return err
 	}
@@ -95,12 +103,12 @@ func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	id := c.Param("id")
-	name := c.Param("name")
+	id := c.FormValue("id")
+	name := c.FormValue("name")
 	service := model.Service{}
 
 	// check for empty params
-	if id == "" || name == "" {
+	if id == "" && name == "" {
 		return c.JSON(http.StatusBadRequest, "Bad request")
 	}
 
@@ -127,12 +135,28 @@ func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 
 func (se *ServicesEndpoints) GetService(c echo.Context) error {
 
-	// first check if the user is admin
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(*model.JwtCustomClaims)
-	if claims.RoleId > 1 {
-		return c.JSON(http.StatusForbidden, "Forbidden")
+	var err error
+
+	tokenString := c.Get("user").(*jwt.Token)
+	// claims := jwtuserToken.Claims.(*model.JwtCustomClaims)
+	token, err := jwt.Parse(tokenString.Raw, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte("secret"), nil
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	jwtToken := make(map[string]interface{})
+	jwtToken = token.Claims.(jwt.MapClaims)
+
+	// user := c.Get("user").(*jwt.Token)
+	// claims := user.Claims.(*model.JwtCustomClaims)
 
 	type RequestBody struct {
 		ID   string `json:"id"`
@@ -140,14 +164,13 @@ func (se *ServicesEndpoints) GetService(c echo.Context) error {
 	}
 	var requestBody RequestBody
 	if err := c.Bind(&requestBody); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return c.JSON(http.StatusBadRequest, err)
 	}
 
 	if requestBody.ID == "" && requestBody.Name == "" {
 		return c.JSON(http.StatusBadRequest, "Bad request")
 	}
 
-	var err error
 	var idInt int
 	service := model.Service{}
 	if requestBody.ID != "" {
@@ -155,7 +178,7 @@ func (se *ServicesEndpoints) GetService(c echo.Context) error {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err.Error())
 		}
-		if idInt < 0 {
+		if idInt <= 0 {
 			return c.JSON(http.StatusBadRequest, "Bad request")
 		}
 		service.ID = idInt
@@ -165,7 +188,12 @@ func (se *ServicesEndpoints) GetService(c echo.Context) error {
 		service.Name = requestBody.Name
 	}
 
-	svc, err := se.ServicesUC.Get(c.Request().Context(), service)
+	userId, err := se.getUsrId(c, jwtToken["name"].(string))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	svc, err := se.ServicesUC.Get(c.Request().Context(), service, int(jwtToken["role"].(float64)), userId)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
@@ -208,9 +236,13 @@ func (se *ServicesEndpoints) checkGetParams(c echo.Context) (service model.Servi
 	}
 
 	accLevel := model.AccessLevel(accessLevelInt)
-	exeTime, err := time.ParseDuration(executionTime)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, err.Error())
+
+	var exeTimeInt64 int64
+	if executionTime != "" {
+		exeTimeInt64, err = strconv.ParseInt(executionTime, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err.Error())
+		}
 	}
 
 	service = model.Service{
@@ -220,7 +252,7 @@ func (se *ServicesEndpoints) checkGetParams(c echo.Context) (service model.Servi
 		Header:        headerMap,
 		Body:          bodyMap,
 		AccessLevel:   accLevel,
-		ExecutionTime: exeTime,
+		ExecutionTime: exeTimeInt64,
 	}
 
 	return service, nil
@@ -272,14 +304,25 @@ func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Serv
 		return model.Service{}, errors.New("access level must be filled")
 	}
 
-	exeTime, err := time.ParseDuration(executiontime)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, err.Error())
+	var exeTimeInt64 int64
+	if executiontime != "" {
+		exeTimeInt64, err = strconv.ParseInt(executiontime, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err.Error())
+		}
 	}
 
-	allowU := strings.Split(allowedusers, ", ")
-	for i, value := range allowU {
-		allowU[i] = strings.TrimSpace(value)
+	allowedusers = strings.Replace(allowedusers, " ", "", -1)
+	allowU := strings.Split(allowedusers, ",")
+
+	var userIds []int
+	for _, username := range allowU {
+		userId, err := se.getUsrId(c, username)
+		if err != nil {
+			return model.Service{}, errors.New("error while getting user id")
+		}
+
+		userIds = append(userIds, userId)
 	}
 
 	service = model.Service{
@@ -289,9 +332,18 @@ func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Serv
 		Header:        headerMap,
 		Body:          bodyMap,
 		AccessLevel:   accLevel,
-		ExecutionTime: exeTime,
-		AllowedUsers:  allowU,
+		ExecutionTime: exeTimeInt64,
+		AllowedUsers:  userIds,
 	}
 
 	return service, nil
+}
+
+func (se *ServicesEndpoints) getUsrId(c echo.Context, username string) (userId int, err error) {
+	userId, err = se.ServicesUC.Useruc.DB.GetUsrId(c.Request().Context(), username)
+	if err != nil {
+		return -1, errors.New("error while getting user id")
+	}
+
+	return userId, nil
 }

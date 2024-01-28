@@ -32,7 +32,7 @@ type UserUpdate struct {
 }
 
 const (
-	Admin AccessLevel = iota
+	Admin AccessLevel = iota + 1
 	Regular
 	Demo
 )

@@ -12,7 +12,7 @@ import (
 )
 
 func NewUpdateUser() *UserEndpoint {
-	var userUC useruc.UserUsecase = useruc.UserUsecase{Repo: &userrepo.UserRepo{}}
+	var userUC useruc.UserUsecase = useruc.UserUsecase{DB: &userrepo.UserRepo{}}
 	return &UserEndpoint{
 		UserUC: &userUC,
 	}
@@ -27,7 +27,7 @@ func (lue *UserEndpoint) UpdateUser(c echo.Context) error {
 	claims := user.Claims.(*model.JwtCustomClaims)
 	if claims.Admin {
 		accessLevel, _ := strconv.Atoi(role)
-		lue.UserUC.Repo.Update(c.Request().Context(), username, password, accessLevel)
+		lue.UserUC.DB.Update(c.Request().Context(), username, password, accessLevel)
 	} else {
 		return errors.New("Forbidden")
 	}

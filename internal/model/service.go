@@ -12,8 +12,8 @@ type Service struct {
 	Header        map[string]string      `json:"header,omitempty"`
 	Body          map[string]interface{} `json:"body,omitempty"`
 	AccessLevel   AccessLevel            `json:"access_level,omitempty"`
-	ExecutionTime time.Duration          `json:"execution_time,omitempty"`
-	AllowedUsers  []string               `json:"allowed_users,omitempty"`
+	ExecutionTime int64                  `json:"execution_time,omitempty"`
+	AllowedUsers  []int                  `json:"allowed_users,omitempty"`
 }
 
 type ErrorReport struct {

@@ -37,32 +37,48 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 		return err
 	}
 
+	var mapclaim jwt.MapClaims
+
 	// Set custom claims
-	var LUE *LoginUserEndpoint
-	if loginuc.Role == 0 {
-		LUE = &LoginUserEndpoint{
-			loginuc.Username,
-			true,
-			loginuc.Role,
-			jwt.RegisteredClaims{
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-			},
-			nil,
+	// var LUE *LoginUserEndpoint
+	if loginuc.Role == 1 {
+
+		mapclaim = jwt.MapClaims{
+			"name":  loginuc.Username,
+			"role":  loginuc.Role,
+			"admin": true,
+			"exp":   time.Now().Add(time.Hour * 72).Unix(),
 		}
+
+		// LUE = &LoginUserEndpoint{
+		// 	loginuc.Username,
+		// 	true,
+		// 	loginuc.Role,
+		// 	jwt.RegisteredClaims{
+		// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
+		// 	},
+		// 	nil,
+		// }
 	} else {
-		LUE = &LoginUserEndpoint{
-			loginuc.Username,
-			false,
-			loginuc.Role,
-			jwt.RegisteredClaims{
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-			},
-			nil,
+		mapclaim = jwt.MapClaims{
+			"name":  loginuc.Username,
+			"role":  loginuc.Role,
+			"admin": false,
+			"exp":   time.Now().Add(time.Hour * 72).Unix(),
 		}
+		// LUE = &LoginUserEndpoint{
+		// 	loginuc.Username,
+		// 	false,
+		// 	loginuc.Role,
+		// 	jwt.RegisteredClaims{
+		// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
+		// 	},
+		// 	nil,
+		// }
 	}
 
-	// Create token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, LUE)
+	// Create token with claimsz
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, mapclaim)
 
 	// Generate encoded token and send it as response.
 	t, err := token.SignedString([]byte("secret"))

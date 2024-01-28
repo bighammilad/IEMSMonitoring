@@ -12,8 +12,8 @@ import (
 
 type IServicesRepository interface {
 	Add(ctx context.Context, service model.Service) error
-	GetServiceByName(ctx context.Context, service model.Service) (model.Service, error)
-	GetServiceById(ctx context.Context, service model.Service) (model.Service, error)
+	GetServiceByName(ctx context.Context, service model.Service, roldId int, userId int) (model.Service, error)
+	GetServiceById(ctx context.Context, service model.Service, roldId int, userId int) (model.Service, error)
 	List(ctx context.Context) ([]model.Service, error)
 	Update(ctx context.Context, service model.Service) error
 	Delete(ctx context.Context, service model.Service) error
@@ -21,7 +21,7 @@ type IServicesRepository interface {
 }
 
 type ServicesRepository struct {
-	Pg postgres.IPostgres
+	DB postgres.IPostgres
 }
 
 var bodyHeader_deserializer = func(header, body string) (map[string]string, map[string]interface{}, error) {
@@ -41,7 +41,7 @@ var bodyHeader_deserializer = func(header, body string) (map[string]string, map[
 }
 
 func (sr *ServicesRepository) Add(ctx context.Context, service model.Service) error {
-	_, err := sr.Pg.ExecContext(ctx, `
+	_, err := sr.DB.ExecContext(ctx, `
 		INSERT INTO services (name, address, method, header, body,  access_level, execution_time, allowed_users)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, service.Name, service.Address, service.Method, service.Header, service.Body,
 		service.AccessLevel, service.ExecutionTime, service.AllowedUsers)
@@ -54,7 +54,7 @@ func (sr *ServicesRepository) Add(ctx context.Context, service model.Service) er
 
 func (sr *ServicesRepository) GetServicesForUser(ctx context.Context, userID int) ([]string, error) {
 	var services []string
-	rows, err := sr.Pg.QueryContext(ctx, `
+	rows, err := sr.DB.QueryContext(ctx, `
 		SELECT s.name
 		FROM services s
 		JOIN users u ON u.access_level = s.access_level
@@ -77,11 +77,17 @@ func (sr *ServicesRepository) GetServicesForUser(ctx context.Context, userID int
 	return services, nil
 }
 
-func (sr *ServicesRepository) GetServiceByName(ctx context.Context, service model.Service) (serviceRes model.Service, err error) {
+func (sr *ServicesRepository) GetServiceByName(ctx context.Context, serviceName string, roleID int, userId int) (serviceRes model.Service, err error) {
 
-	q := `SELECT name,address,method,header,body,access_level,execution_time,allowed_users FROM services WHERE name = $1 order by id asc limit 1`
+	// q := `SELECT name,address,method,header,body,access_level,execution_time,allowed_users FROM services WHERE name = $1 order by id asc limit 1`
 
-	rows, err := sr.Pg.QueryContext(ctx, q, service.Name)
+	q := `
+	SELECT name,address,method,header,body,access_level,execution_time
+	FROM services
+	WHERE name = $1
+	AND (access_level = $2 and $3 = ANY(allowed_users));
+	`
+	rows, err := sr.DB.QueryContext(ctx, q, serviceName, roleID, userId)
 	if err != nil {
 		return model.Service{}, err
 	}
@@ -92,7 +98,7 @@ func (sr *ServicesRepository) GetServiceByName(ctx context.Context, service mode
 		err := rows.Scan(
 			&service.Name, &service.Address, &service.Method,
 			&header, &body,
-			&service.AccessLevel, &service.ExecutionTime, &service.AllowedUsers,
+			&service.AccessLevel, &service.ExecutionTime,
 		)
 		if err != nil {
 			log.Fatal(err)
@@ -110,11 +116,16 @@ func (sr *ServicesRepository) GetServiceByName(ctx context.Context, service mode
 	return serviceRes, nil
 }
 
-func (sr *ServicesRepository) GetServiceById(ctx context.Context, service model.Service) (serviceRes model.Service, err error) {
+func (sr *ServicesRepository) GetServiceById(ctx context.Context, serviceId int, userId int, roleId int) (serviceRes model.Service, err error) {
 
-	q := `SELECT * FROM services WHERE id = $1`
+	q := `
+	SELECT name,address,method,header,body,access_level,execution_time
+	FROM services
+	WHERE id = $1
+	AND (access_level = $2 and $3 = ANY(allowed_users));
+	`
 
-	rows, err := sr.Pg.QueryContext(ctx, q, service.ID)
+	rows, err := sr.DB.QueryContext(ctx, q, serviceId)
 	if err != nil {
 		return model.Service{}, err
 	}
@@ -133,7 +144,7 @@ func (sr *ServicesRepository) GetServiceById(ctx context.Context, service model.
 func (sr *ServicesRepository) List(ctx context.Context) (services []model.Service, err error) {
 	q := `SELECT * FROM services`
 
-	rows, err := sr.Pg.QueryContext(ctx, q)
+	rows, err := sr.DB.QueryContext(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +233,7 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 		}
 		values = append(values, serviceName)
 
-		_, err := sr.Pg.ExecContext(ctx, q, values...)
+		_, err := sr.DB.ExecContext(ctx, q, values...)
 		if err != nil {
 			return err
 		}
@@ -260,7 +271,7 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 		}
 		values = append(values, serviceId)
 
-		_, err := sr.Pg.ExecContext(ctx, q, values...)
+		_, err := sr.DB.ExecContext(ctx, q, values...)
 		if err != nil {
 			return err
 		}
@@ -282,12 +293,12 @@ func (sr *ServicesRepository) Delete(ctx context.Context, service model.Service)
 
 	switch {
 	case name != "":
-		_, err := sr.Pg.ExecContext(ctx, qByName, service.Name)
+		_, err := sr.DB.ExecContext(ctx, qByName, service.Name)
 		if err != nil {
 			return err
 		}
 	case id != 0:
-		_, err := sr.Pg.ExecContext(ctx, qById, service.ID)
+		_, err := sr.DB.ExecContext(ctx, qById, service.ID)
 		if err != nil {
 			return err
 		}

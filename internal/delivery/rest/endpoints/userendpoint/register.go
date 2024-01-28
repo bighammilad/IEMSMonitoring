@@ -7,12 +7,14 @@ import (
 	"monitoring/internal/usecase/useruc"
 	"strconv"
 
+	. "monitoring/internal/globals"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
 func NewRegisterUser() *UserEndpoint {
-	var useruc useruc.UserUsecase = useruc.UserUsecase{Repo: &userrepo.UserRepo{}}
+	var useruc useruc.UserUsecase = useruc.UserUsecase{DB: &userrepo.UserRepo{DB: GlobalPG}}
 	return &UserEndpoint{
 		UserUC: &useruc,
 	}
@@ -35,12 +37,13 @@ func (lue *UserEndpoint) RegisterUser(c echo.Context) error {
 		_ = jwt.NewWithClaims(jwt.SigningMethodES256,
 			jwt.MapClaims{
 				"role": roleId,
+				"sm":   claims.Name,
 			})
 		// s, err := t.SignedString([]byte("Secret"))
 		// if err != nil {
 		// 	return err
 		// }
-		lue.UserUC.Repo.Register(c.Request().Context(), username, password, roleId)
+		lue.UserUC.DB.Register(c.Request().Context(), username, password, roleId)
 	} else {
 		return errors.New("Forbidden")
 	}

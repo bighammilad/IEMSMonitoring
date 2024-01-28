@@ -12,7 +12,7 @@ type IRegisterUserUsecase interface {
 }
 
 type UserUsecase struct {
-	Repo *userrepo.UserRepo
+	DB *userrepo.UserRepo
 }
 
 func (ruu *UserUsecase) RegisterUser(ctx context.Context, username, password string, role int) (ok bool, err error) {
@@ -21,7 +21,7 @@ func (ruu *UserUsecase) RegisterUser(ctx context.Context, username, password str
 	if err != nil {
 		return false, err
 	}
-	ok, err = ruu.Repo.Register(ctx, username, hashPass, role)
+	ok, err = ruu.DB.Register(ctx, username, hashPass, role)
 	if err != nil {
 		return false, err
 	}

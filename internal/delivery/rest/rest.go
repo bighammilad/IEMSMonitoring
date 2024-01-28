@@ -6,10 +6,8 @@ import (
 	"monitoring/internal/delivery/rest/endpoints"
 	"monitoring/internal/delivery/rest/endpoints/userendpoint"
 	"monitoring/internal/model"
-	"monitoring/internal/repository"
-	"monitoring/internal/usecase"
 
-	. "monitoring/internal/globals"
+	// . "monitoring/internal/globals"
 
 	"monitoring/pkg/postgres"
 	"net/http"
@@ -47,14 +45,11 @@ func New() (r *Rest, err error) {
 
 	// url: localhost:8090/panel
 	restericted.GET("", restricted)
-	registerUsr := userendpoint.NewRegisterUser()
-	restericted.POST("/user/register", registerUsr.RegisterUser) // url: localhost:8090/panel/user/register
-	updateUsr := userendpoint.NewRegisterUser()
-	restericted.POST("/user/update", updateUsr.UpdateUser) // url: localhost:8090/panel/user/update
+	user := userendpoint.NewRegisterUser()
+	restericted.POST("/user/register", user.RegisterUser) // url: localhost:8090/panel/user/register
+	restericted.POST("/user/update", user.UpdateUser)     // url: localhost:8090/panel/user/update
 
-	serviceRepo := repository.ServicesRepository{Pg: GlobalPG}
-	srvUC := usecase.ServicesUsecase{ServicesRepo: serviceRepo}
-	service := endpoints.NewServicesEndpoints(srvUC)
+	service := endpoints.NewServicesEndpoints()
 	restericted.GET("/service/get", service.GetService)  // url: localhost:8090/panel/service/get
 	restericted.POST("/service/add", service.AddService) // url: localhost:8090/panel/service/add
 

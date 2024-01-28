@@ -14,7 +14,7 @@ type IUser interface {
 }
 
 type UserRepo struct {
-	DB *postgres.Postgres
+	DB postgres.IPostgres
 }
 
 func (ru *UserRepo) Register(ctx context.Context, username, hashPass string, role int) (ok bool, err error) {
@@ -133,4 +133,25 @@ func (ruu *UserRepo) updateUser(ctx context.Context, user model.UserUpdate) (err
 	}
 
 	return
+}
+
+func (ruu *UserRepo) GetUsrId(ctx context.Context, username string) (userid int, err error) {
+	q := `SELECT id FROM users WHERE username=$1;`
+	rows, err := ruu.DB.QueryContext(ctx, q, username)
+	if err != nil {
+		return 0, err
+	}
+	var user model.UserRes
+	defer rows.Close()
+	for rows.Next() {
+		var entry model.UserRes
+		err := rows.Scan(
+			&entry.UserId,
+		)
+		if err != nil {
+			return 0, err
+		}
+		user = entry
+	}
+	return user.UserId, nil
 }
