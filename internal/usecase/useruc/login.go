@@ -10,14 +10,14 @@ type ILogin interface {
 }
 
 type LoginUC struct {
-	Username  string
-	Role      int
-	LoginRepo userrepo.LoginRepo
+	Username   string
+	Role       int
+	ILoginRepo userrepo.ILoginRepo
 }
 
 func (l *LoginUC) Login(ctx context.Context, username, password string) (*LoginUC, error) {
 
-	user, err := l.LoginRepo.Auth(ctx, username, password)
+	user, err := l.ILoginRepo.Auth(ctx, username, password)
 	if err != nil {
 		return &LoginUC{}, err
 	}

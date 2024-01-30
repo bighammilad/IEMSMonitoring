@@ -1,6 +1,7 @@
 package userendpoint
 
 import (
+	"monitoring/internal/model"
 	"monitoring/internal/repository/userrepo"
 	"monitoring/internal/usecase/useruc"
 	"net/http"
@@ -21,7 +22,7 @@ type LoginUserEndpoint struct {
 }
 
 func NewLoginUserEndpoint() *LoginUserEndpoint {
-	var loginuc useruc.LoginUC = useruc.LoginUC{LoginRepo: userrepo.LoginRepo{DB: GlobalPG}}
+	var loginuc useruc.LoginUC = useruc.LoginUC{ILoginRepo: &userrepo.LoginRepo{DB: GlobalPG}}
 	return &LoginUserEndpoint{
 		LoginUC: &loginuc,
 	}
@@ -29,36 +30,31 @@ func NewLoginUserEndpoint() *LoginUserEndpoint {
 
 func (le *LoginUserEndpoint) Login(c echo.Context) error {
 
-	username := c.FormValue("username")
-	password := c.FormValue("password")
-
-	loginuc, err := le.LoginUC.Login(c.Request().Context(), username, password)
-	if err != nil {
-		return err
+	var usr model.UserAuth
+	if err := c.Bind(&usr); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
 	}
-
+	if usr.Username == "" || usr.Password == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
+	}
+	loginuc, err := le.LoginUC.Login(c.Request().Context(), usr.Username, usr.Password)
+	if err != nil {
+		if err.Error() == "user not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		} else if err.Error() == "incorrect password" {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "incorrect password"})
+		} else {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+	}
 	var mapclaim jwt.MapClaims
-
-	// Set custom claims
-	// var LUE *LoginUserEndpoint
 	if loginuc.Role == 1 {
-
 		mapclaim = jwt.MapClaims{
 			"name":  loginuc.Username,
 			"role":  loginuc.Role,
 			"admin": true,
 			"exp":   time.Now().Add(time.Hour * 72).Unix(),
 		}
-
-		// LUE = &LoginUserEndpoint{
-		// 	loginuc.Username,
-		// 	true,
-		// 	loginuc.Role,
-		// 	jwt.RegisteredClaims{
-		// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-		// 	},
-		// 	nil,
-		// }
 	} else {
 		mapclaim = jwt.MapClaims{
 			"name":  loginuc.Username,
@@ -66,28 +62,13 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 			"admin": false,
 			"exp":   time.Now().Add(time.Hour * 72).Unix(),
 		}
-		// LUE = &LoginUserEndpoint{
-		// 	loginuc.Username,
-		// 	false,
-		// 	loginuc.Role,
-		// 	jwt.RegisteredClaims{
-		// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-		// 	},
-		// 	nil,
-		// }
 	}
-
-	// Create token with claimsz
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, mapclaim)
-
-	// Generate encoded token and send it as response.
 	t, err := token.SignedString([]byte("secret"))
 	if err != nil {
 		return err
 	}
-
 	return c.JSON(http.StatusOK, echo.Map{
 		"token": t,
 	})
-
 }

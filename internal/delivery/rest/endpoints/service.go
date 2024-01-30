@@ -26,7 +26,7 @@ type ServicesEndpoints struct {
 func NewServicesEndpoints() *ServicesEndpoints {
 	var serviceuc usecase.ServicesUsecase = usecase.ServicesUsecase{
 		ServicesRepo: repository.ServicesRepository{DB: GlobalPG},
-		Useruc:       useruc.UserUsecase{DB: &userrepo.UserRepo{DB: GlobalPG}}}
+		Useruc:       useruc.UserUsecase{IUser: &userrepo.UserRepo{DB: GlobalPG}}}
 	return &ServicesEndpoints{
 		ServicesUC: serviceuc,
 	}
@@ -340,7 +340,7 @@ func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Serv
 }
 
 func (se *ServicesEndpoints) getUsrId(c echo.Context, username string) (userId int, err error) {
-	userId, err = se.ServicesUC.Useruc.DB.GetUsrId(c.Request().Context(), username)
+	userId, err = se.ServicesUC.Useruc.IUser.GetUsrId(c.Request().Context(), username)
 	if err != nil {
 		return -1, errors.New("error while getting user id")
 	}

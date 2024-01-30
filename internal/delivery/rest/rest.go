@@ -43,18 +43,20 @@ func New() (r *Rest, err error) {
 	}
 	restericted.Use(echojwt.WithConfig(config))
 
-	// url: localhost:8090/panel
 	restericted.GET("", restricted)
-	user := userendpoint.NewRegisterUser()
-	restericted.POST("/user/register", user.RegisterUser) // url: localhost:8090/panel/user/register
-	restericted.POST("/user/update", user.UpdateUser)     // url: localhost:8090/panel/user/update
+	user := userendpoint.NewUserEndpoint()
+	restericted.POST("/user/create", user.Create)
+	restericted.GET("/user/read", user.Read)
+	restericted.GET("/user/readall", user.ReadAll)
+	restericted.POST("/user/update", user.Update)
+	restericted.POST("/user/delete", user.Delete)
 
 	service := endpoints.NewServicesEndpoints()
-	restericted.GET("/service/get", service.GetService)  // url: localhost:8090/panel/service/get
-	restericted.POST("/service/add", service.AddService) // url: localhost:8090/panel/service/add
+	restericted.GET("/service/get", service.GetService)
+	restericted.POST("/service/add", service.AddService)
 
-	e.GET("/demo", demo)                             // url: localhost:8090/demo
-	e.GET("/test", test, echojwt.WithConfig(config)) // url: localhost:8090/test
+	e.GET("/demo", demo)
+	e.GET("/test", test, echojwt.WithConfig(config))
 
 	return
 }

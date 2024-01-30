@@ -43,3 +43,9 @@ type User struct {
 	Username    string      `json:"username,omitempty"`
 	AccessLevel AccessLevel `json:"access_level,omitempty"`
 }
+
+type UserAuth struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     int    `json:"role"`
+}
