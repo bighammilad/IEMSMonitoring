@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	. "monitoring/internal/globals"
@@ -12,23 +11,37 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func IsAdmin(c echo.Context) (admin bool, err error) {
-	if c.Get("user") != nil {
-		tokenString := c.Get("user").(*jwt.Token)
-		token, err := jwt.Parse(tokenString.Raw, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+// echo middleware to check jwt token
+func IsAdminUser(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		if c.Get("user") != nil {
+			tokenString := c.Get("user").(*jwt.Token)
+			token, err := jwt.Parse(tokenString.Raw, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte("secret"), nil
+			})
+			if err != nil {
+				return echo.ErrInternalServerError
 			}
-			return []byte("secret"), nil
-		})
-		if err != nil {
-			log.Fatal(err)
+			jwtToken := token.Claims.(jwt.MapClaims)
+			if _, ok := jwtToken["role"]; !ok {
+				return echo.ErrForbidden
+			}
+			//check if jwtToken["role"] is float64
+			if _, ok := jwtToken["role"].(float64); !ok {
+				return echo.ErrForbidden
+			}
+			role := int(jwtToken["role"].(float64))
+			if role == 1 {
+				return next(c)
+			} else {
+				return echo.ErrForbidden
+			}
+		} else {
+			return echo.ErrForbidden
 		}
-		jwtToken := token.Claims.(jwt.MapClaims)
-		role := int(jwtToken["role"].(float64))
-		return role == 1, nil
-	} else {
-		return false, nil
 	}
 }
 
