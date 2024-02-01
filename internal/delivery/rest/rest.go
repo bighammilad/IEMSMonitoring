@@ -5,6 +5,7 @@ import (
 	// "monitoring/internal/delivery/rest/endpoints"
 	"monitoring/internal/delivery/rest/endpoints"
 	"monitoring/internal/delivery/rest/endpoints/userendpoint"
+	"monitoring/internal/delivery/rest/middlewares"
 	"monitoring/internal/model"
 
 	// . "monitoring/internal/globals"
@@ -42,10 +43,12 @@ func New() (r *Rest, err error) {
 		SigningKey: []byte("secret"),
 	}
 	restericted.Use(echojwt.WithConfig(config))
+	restericted.Use(middlewares.IsAdminUser)
 
 	user := userendpoint.NewUserEndpoint()
+	restericted.Use()
 	restericted.POST("/user/create", user.Create)
-	restericted.GET("/user/read", user.Read)
+	restericted.POST("/user/read", user.Read)
 	restericted.GET("/user/readall", user.ReadAll)
 	restericted.POST("/user/update", user.Update)
 	restericted.POST("/user/delete", user.Delete)
