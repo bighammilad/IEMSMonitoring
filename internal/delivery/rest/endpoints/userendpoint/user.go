@@ -9,8 +9,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-
-	midware "monitoring/internal/delivery/rest/middlewares"
 )
 
 type UserEndpoint struct {
@@ -28,13 +26,6 @@ func NewUserEndpoint() *UserEndpoint {
 }
 
 func (ue *UserEndpoint) Create(c echo.Context) error {
-	admin, err := midware.IsAdmin(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-	if !admin {
-		return echo.ErrForbidden
-	}
 	var usr model.UserAuth
 	if err := c.Bind(&usr); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid JSON"})
@@ -57,13 +48,6 @@ func (ue *UserEndpoint) Create(c echo.Context) error {
 }
 
 func (ue *UserEndpoint) Read(c echo.Context) error {
-	admin, err := midware.IsAdmin(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-	if !admin {
-		return echo.ErrForbidden
-	}
 	var usr model.UserAuth
 	if err := c.Bind(&usr); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid JSON"})
@@ -81,13 +65,6 @@ func (ue *UserEndpoint) Read(c echo.Context) error {
 }
 
 func (ue *UserEndpoint) ReadAll(c echo.Context) error {
-	admin, err := midware.IsAdmin(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-	if !admin {
-		return echo.ErrForbidden
-	}
 	users, err := ue.UserUC.ReadAll(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
@@ -98,13 +75,6 @@ func (ue *UserEndpoint) ReadAll(c echo.Context) error {
 }
 
 func (ue *UserEndpoint) Update(c echo.Context) error {
-	admin, err := midware.IsAdmin(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-	if !admin {
-		return echo.ErrForbidden
-	}
 	var usr model.UserAuth
 	if err := c.Bind(&usr); err != nil {
 		return err
@@ -122,13 +92,6 @@ func (ue *UserEndpoint) Update(c echo.Context) error {
 }
 
 func (ue *UserEndpoint) Delete(c echo.Context) error {
-	admin, err := midware.IsAdmin(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-	if !admin {
-		return echo.ErrForbidden
-	}
 	var usr model.UserAuth
 	if err := c.Bind(&usr); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid JSON"})
@@ -136,7 +99,7 @@ func (ue *UserEndpoint) Delete(c echo.Context) error {
 	if usr.Username == "" {
 		return echo.ErrBadRequest
 	}
-	err = ue.UserUC.Delete(c.Request().Context(), usr.Username)
+	err := ue.UserUC.Delete(c.Request().Context(), usr.Username)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
