@@ -39,8 +39,8 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 	if err != nil {
 		if err.Error() == "user not found" {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
-		} else if err.Error() == "incorrect password" {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "incorrect password"})
+		} else if err.Error() == "user/password is wrong" {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "user/password is wrong"})
 		} else {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		}
