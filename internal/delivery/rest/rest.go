@@ -43,7 +43,6 @@ func New() (r *Rest, err error) {
 	}
 	restericted.Use(echojwt.WithConfig(config))
 
-	restericted.GET("", restricted)
 	user := userendpoint.NewUserEndpoint()
 	restericted.POST("/user/create", user.Create)
 	restericted.GET("/user/read", user.Read)
@@ -73,15 +72,4 @@ func test(c echo.Context) error {
 
 func demo(c echo.Context) error {
 	return c.String(http.StatusOK, "demo")
-}
-
-func restricted(c echo.Context) error {
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(*model.JwtCustomClaims)
-	name := claims.Name
-	if claims.Admin {
-		return c.String(http.StatusOK, "Welcome "+name+"! Admin")
-	} else {
-		return c.String(http.StatusOK, "Welcome "+name+"!")
-	}
 }

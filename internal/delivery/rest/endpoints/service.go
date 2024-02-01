@@ -36,7 +36,7 @@ func (se *ServicesEndpoints) ListServices(c echo.Context) error {
 
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
-	if !claims.Admin {
+	if claims.RoleId != 1 {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
@@ -52,7 +52,7 @@ func (se *ServicesEndpoints) AddService(c echo.Context) error {
 
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
-	if !claims.Admin {
+	if claims.RoleId != 1 {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
@@ -76,7 +76,7 @@ func (se *ServicesEndpoints) UpdateService(c echo.Context) error {
 
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
-	if !claims.Admin {
+	if claims.RoleId != 1 {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
@@ -99,7 +99,7 @@ func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 	// first check if the user is admin
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
-	if !claims.Admin {
+	if claims.RoleId != 1 {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 

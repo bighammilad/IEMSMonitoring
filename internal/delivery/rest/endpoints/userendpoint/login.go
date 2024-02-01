@@ -14,9 +14,8 @@ import (
 )
 
 type LoginUserEndpoint struct {
-	Name  string `json:"name,omitempty"`
-	Admin bool   `json:"admin,omitempty"`
-	Role  int    `json:"role,omitempty"`
+	Name string `json:"name,omitempty"`
+	Role int    `json:"role,omitempty"`
 	jwt.RegisteredClaims
 	LoginUC useruc.ILogin `json:"login_uc,omitempty"`
 }
@@ -29,7 +28,6 @@ func NewLoginUserEndpoint() *LoginUserEndpoint {
 }
 
 func (le *LoginUserEndpoint) Login(c echo.Context) error {
-
 	var usr model.UserAuth
 	if err := c.Bind(&usr); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
@@ -50,17 +48,15 @@ func (le *LoginUserEndpoint) Login(c echo.Context) error {
 	var mapclaim jwt.MapClaims
 	if loginuc.Role == 1 {
 		mapclaim = jwt.MapClaims{
-			"name":  loginuc.Username,
-			"role":  loginuc.Role,
-			"admin": true,
-			"exp":   time.Now().Add(time.Hour * 72).Unix(),
+			"name": loginuc.Username,
+			"role": loginuc.Role,
+			"exp":  time.Now().Add(time.Hour * 72).Unix(),
 		}
 	} else {
 		mapclaim = jwt.MapClaims{
-			"name":  loginuc.Username,
-			"role":  loginuc.Role,
-			"admin": false,
-			"exp":   time.Now().Add(time.Hour * 72).Unix(),
+			"name": loginuc.Username,
+			"role": loginuc.Role,
+			"exp":  time.Now().Add(time.Hour * 72).Unix(),
 		}
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, mapclaim)

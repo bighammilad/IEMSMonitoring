@@ -19,20 +19,25 @@ type LoginRepo struct {
 }
 
 func (lr *LoginRepo) Auth(ctx context.Context, username, password string) (user model.LoginResult, err error) {
-	userId, err := lr.getUserID(ctx, username)
+
+	q := `SELECT username, password, role FROM users WHERE username = $1`
+	row, err := lr.DB.QueryContext(ctx, q, username)
 	if err != nil {
 		return model.LoginResult{}, err
 	}
-	if userId <= 0 {
-		return model.LoginResult{}, errors.New("user not found")
-	}
-	user, err = lr.auth(ctx, userId, password)
-	if err != nil {
-		if err.Error() == "user/password is wrong" {
-			return model.LoginResult{}, errors.New("incorrect password")
-		} else {
+	defer row.Close()
+	for row.Next() {
+		err = row.Scan(&user.Username, &user.Password, &user.Role)
+		if err != nil {
 			return model.LoginResult{}, err
 		}
+	}
+	if user.Username == "" {
+		return model.LoginResult{}, errors.New("user not found")
+	}
+	ok := hashpass.CheckPasswordHash(password, user.Password)
+	if !ok {
+		return model.LoginResult{}, errors.New("user/password is wrong")
 	}
 	return user, nil
 }

@@ -4,15 +4,18 @@ import (
 	"fmt"
 	"monitoring/config"
 	"monitoring/pkg/postgres"
+	"net/http"
 
 	// "monitoring/internal/delivery/cron"
 	rest "monitoring/internal/delivery/rest"
+	"monitoring/internal/delivery/rest/middlewares"
 	. "monitoring/internal/globals"
 	"monitoring/internal/util/midlog"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
 )
@@ -37,6 +40,12 @@ func main() {
 		midlog.SetLevel(logLevel)
 	}
 
+	// check if admin user exists
+	err = middlewares.MakeAdminUser(echo.New().NewContext(&http.Request{}, nil))
+	if err != nil {
+		midlog.FatalF("Error creating admin user: %v", err)
+	}
+
 	// cronJob, err := cron.New()
 	// if err != nil {
 	// 	midlog.FatalF("Error creating cron job: %v", err)
@@ -59,7 +68,7 @@ func SetGlobals() {
 	var err error
 	GlobalPG, err = postgres.New(GlobalConfig.PGConn)
 	if err != nil {
-		midlog.FatalF("Error creating midgard postgres client: %v", err)
+		midlog.FatalF("Error creating monitoring postgres client: %v", err)
 	}
 
 	GlobalConfig.HTTP.Address = "127.0.0.1:8090"
