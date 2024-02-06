@@ -56,14 +56,16 @@ func (se *ServicesEndpoints) AddService(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	service, err := se.checkPostParams(c)
+	service, userIds, err := se.checkPostParams(c)
 	if err != nil {
-		var t any
-		return c.JSON(http.StatusBadRequest, t)
+		return c.JSON(http.StatusBadRequest, err)
 	}
 
 	// add service
-	err = se.ServicesUC.Add(c.Request().Context(), service)
+	if len(userIds) == 0 {
+		return c.JSON(http.StatusBadRequest, "No users added")
+	}
+	err = se.ServicesUC.Add(c.Request().Context(), service, userIds)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -80,7 +82,7 @@ func (se *ServicesEndpoints) UpdateService(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	service, err := se.checkPostParams(c)
+	service, _, err := se.checkPostParams(c)
 	if err != nil {
 		return err
 	}
@@ -96,35 +98,32 @@ func (se *ServicesEndpoints) UpdateService(c echo.Context) error {
 
 func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 
-	// first check if the user is admin
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*model.JwtCustomClaims)
 	if claims.RoleId != 1 {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	id := c.FormValue("id")
-	name := c.FormValue("name")
+	type RequestBody struct {
+		Name string `json:"name"`
+	}
+
+	var req RequestBody
+	if err := c.Bind(&req); err != nil {
+		return errors.New("invalid JSON")
+	}
+
 	service := model.Service{}
 
 	// check for empty params
-	if id == "" && name == "" {
+	if req.Name == "" {
 		return c.JSON(http.StatusBadRequest, "Bad request")
 	}
 
-	idInt, err := strconv.Atoi(id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, err.Error())
-	}
-	service.Name = name
-	service.ID = idInt
-
-	if idInt < 0 {
-		return c.JSON(http.StatusBadRequest, "Bad request")
-	}
+	service.Name = &req.Name
 
 	// delete service
-	err = se.ServicesUC.Delete(c.Request().Context(), service)
+	err := se.ServicesUC.Delete(c.Request().Context(), service)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -133,33 +132,22 @@ func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 
 }
 
-func (se *ServicesEndpoints) GetService(c echo.Context) error {
+func (se *ServicesEndpoints) GetUserService(c echo.Context) error {
 
 	var err error
-
 	tokenString := c.Get("user").(*jwt.Token)
-	// claims := jwtuserToken.Claims.(*model.JwtCustomClaims)
 	token, err := jwt.Parse(tokenString.Raw, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
-		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 		return []byte("secret"), nil
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	jwtToken := make(map[string]interface{})
-	jwtToken = token.Claims.(jwt.MapClaims)
-
-	// user := c.Get("user").(*jwt.Token)
-	// claims := user.Claims.(*model.JwtCustomClaims)
-
+	jwtToken := token.Claims.(jwt.MapClaims)
 	type RequestBody struct {
-		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
 	var requestBody RequestBody
@@ -167,25 +155,14 @@ func (se *ServicesEndpoints) GetService(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	if requestBody.ID == "" && requestBody.Name == "" {
+	if requestBody.Name == "" {
 		return c.JSON(http.StatusBadRequest, "Bad request")
 	}
 
-	var idInt int
 	service := model.Service{}
-	if requestBody.ID != "" {
-		idInt, err = strconv.Atoi(requestBody.ID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, err.Error())
-		}
-		if idInt <= 0 {
-			return c.JSON(http.StatusBadRequest, "Bad request")
-		}
-		service.ID = idInt
-	}
 
 	if requestBody.Name != "" {
-		service.Name = requestBody.Name
+		service.Name = &requestBody.Name
 	}
 
 	userId, err := se.getUsrId(c, jwtToken["name"].(string))
@@ -193,7 +170,37 @@ func (se *ServicesEndpoints) GetService(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
 
-	svc, err := se.ServicesUC.Get(c.Request().Context(), service, int(jwtToken["role"].(float64)), userId)
+	svc, err := se.ServicesUC.GetUserService(c.Request().Context(), requestBody.Name, int(jwtToken["role"].(float64)), userId)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, svc)
+
+}
+
+func (se *ServicesEndpoints) GetUserServices(c echo.Context) error {
+
+	var err error
+	tokenString := c.Get("user").(*jwt.Token)
+	token, err := jwt.Parse(tokenString.Raw, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte("secret"), nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	jwtToken := token.Claims.(jwt.MapClaims)
+	userId, err := se.getUsrId(c, jwtToken["name"].(string))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	svc, err := se.ServicesUC.GetUserServices(c.Request().Context(), int(jwtToken["role"].(float64)), userId)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
@@ -246,97 +253,105 @@ func (se *ServicesEndpoints) checkGetParams(c echo.Context) (service model.Servi
 	}
 
 	service = model.Service{
-		Name:          name,
-		Address:       address,
-		Method:        method,
+		Name:          &name,
+		Address:       &address,
+		Method:        &method,
 		Header:        headerMap,
 		Body:          bodyMap,
 		AccessLevel:   accLevel,
-		ExecutionTime: exeTimeInt64,
+		ExecutionTime: &exeTimeInt64,
 	}
 
 	return service, nil
 }
 
-func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Service, err error) {
-	name := c.FormValue("name")
-	address := c.FormValue("address")
-	method := c.FormValue("method")
-	header := c.FormValue("header")
-	body := c.FormValue("body")
-	accesslevel := c.FormValue("access_level")
-	executiontime := c.FormValue("execution_time")
-	allowedusers := c.FormValue("allowed_users")
+func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Service, userIds []int, err error) {
+
+	type RequestBody struct {
+		Name          string `json:"name"`
+		Address       string `json:"address"`
+		Method        string `json:"method"`
+		Header        string `json:"header"`
+		Body          string `json:"body"`
+		AccessLevel   string `json:"accesslevel"`
+		ExecutionTime string `json:"execution_time"`
+		AllowedUsers  string `json:"users"`
+	}
+
+	var req RequestBody
+	if err := c.Bind(&req); err != nil {
+		return model.Service{}, userIds, errors.New("invalid JSON")
+	}
 
 	// check for empty params
-	if name == "" || accesslevel == "" {
-		return model.Service{}, errors.New("service name & accesslevel must be filled")
+	if req.Name == "" || req.AccessLevel == "" {
+		return model.Service{}, userIds, errors.New("service name & accesslevel must be filled")
 	}
-	if address == "" && method == "" && header == "" && body == "" && executiontime == "" {
-		return model.Service{}, c.JSON(http.StatusBadRequest, "Bad request")
+	if req.Address == "" && req.Method == "" && req.Header == "" && req.Body == "" && req.ExecutionTime == "" {
+		return model.Service{}, userIds, c.JSON(http.StatusBadRequest, "Bad request")
 	}
 
 	// put params in service
 	headerMap := make(map[string]string)
-	err = json.Unmarshal([]byte(header), &headerMap)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, err.Error())
+	if req.Header == "" {
+		req.Header = "{}"
+	}
+	if req.Body == "" {
+		req.Body = "{}"
 	}
 
 	bodyMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(body), &bodyMap)
+	err = json.Unmarshal([]byte(req.Body), &bodyMap)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
 	}
 
 	var accessLevelInt int
 	var accLevel model.AccessLevel
-	if accesslevel != "" {
-		accessLevelInt, err = strconv.Atoi(accesslevel)
+	if req.AccessLevel != "" {
+		accessLevelInt, err = strconv.Atoi(req.AccessLevel)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err.Error())
 		}
 		if accessLevelInt < 0 && accessLevelInt > 2 {
-			return model.Service{}, errors.New("access level value isn't valid")
+			return model.Service{}, userIds, errors.New("access level value isn't valid")
 		}
 		accLevel = model.AccessLevel(accessLevelInt)
 	} else {
-		return model.Service{}, errors.New("access level must be filled")
+		return model.Service{}, userIds, errors.New("access level must be filled")
 	}
 
 	var exeTimeInt64 int64
-	if executiontime != "" {
-		exeTimeInt64, err = strconv.ParseInt(executiontime, 10, 64)
+	if req.ExecutionTime != "" {
+		exeTimeInt64, err = strconv.ParseInt(req.ExecutionTime, 10, 64)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err.Error())
 		}
 	}
 
-	allowedusers = strings.Replace(allowedusers, " ", "", -1)
-	allowU := strings.Split(allowedusers, ",")
+	req.AllowedUsers = strings.Replace(req.AllowedUsers, " ", "", -1)
+	allowU := strings.Split(req.AllowedUsers, ",")
 
-	var userIds []int
 	for _, username := range allowU {
 		userId, err := se.getUsrId(c, username)
 		if err != nil {
-			return model.Service{}, errors.New("error while getting user id")
+			return model.Service{}, userIds, errors.New("error while getting user id")
 		}
 
 		userIds = append(userIds, userId)
 	}
 
 	service = model.Service{
-		Name:          name,
-		Address:       address,
-		Method:        method,
+		Name:          &req.Name,
+		Address:       &req.Address,
+		Method:        &req.Method,
 		Header:        headerMap,
 		Body:          bodyMap,
 		AccessLevel:   accLevel,
-		ExecutionTime: exeTimeInt64,
-		AllowedUsers:  userIds,
+		ExecutionTime: &exeTimeInt64,
 	}
 
-	return service, nil
+	return service, userIds, nil
 }
 
 func (se *ServicesEndpoints) getUsrId(c echo.Context, username string) (userId int, err error) {

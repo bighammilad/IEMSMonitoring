@@ -11,13 +11,12 @@ import (
 )
 
 type IServicesRepository interface {
-	Add(ctx context.Context, service model.Service) error
-	GetServiceByName(ctx context.Context, service model.Service, roldId int, userId int) (model.Service, error)
-	GetServiceById(ctx context.Context, service model.Service, roldId int, userId int) (model.Service, error)
+	Add(ctx context.Context, service model.Service, userIds []int) error
+	GetUserService(ctx context.Context, serviceName string, userID, roleId int) (service model.Service, err error)
+	GetUserServices(ctx context.Context, roldId int, userId int) (model.Service, error)
 	List(ctx context.Context) ([]model.Service, error)
 	Update(ctx context.Context, service model.Service) error
 	Delete(ctx context.Context, service model.Service) error
-	GetServicesForUser(ctx context.Context, userID int) ([]string, error)
 }
 
 type ServicesRepository struct {
@@ -40,102 +39,111 @@ var bodyHeader_deserializer = func(header, body string) (map[string]string, map[
 	return headerMap, bodyMap, nil
 }
 
-func (sr *ServicesRepository) Add(ctx context.Context, service model.Service) error {
+func (sr *ServicesRepository) Add(ctx context.Context, service model.Service, userIds []int) error {
 	_, err := sr.DB.ExecContext(ctx, `
-		INSERT INTO services (name, address, method, header, body,  access_level, execution_time, allowed_users)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, service.Name, service.Address, service.Method, service.Header, service.Body,
-		service.AccessLevel, service.ExecutionTime, service.AllowedUsers)
+		INSERT INTO services (name, address, method, header, body,  access_level, execution_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`, service.Name, service.Address, service.Method, service.Header, service.Body,
+		service.AccessLevel, service.ExecutionTime)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// insert user_services
+	for _, userId := range userIds {
+		_, err := sr.DB.ExecContext(ctx, `
+			INSERT INTO user_services (user_id, service_id)
+			VALUES ($1, (SELECT id FROM services WHERE name = $2))`, userId, service.Name)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	return nil
 }
 
-func (sr *ServicesRepository) GetServicesForUser(ctx context.Context, userID int) ([]string, error) {
-	var services []string
-	rows, err := sr.DB.QueryContext(ctx, `
-		SELECT s.name
-		FROM services s
-		JOIN users u ON u.access_level = s.access_level
-		WHERE u.id = $1
-	`, userID)
+func (sr *ServicesRepository) GetUserService(ctx context.Context, serviceName string, userID, roleId int) (service model.Service, err error) {
+	row, err := sr.DB.QueryContext(ctx, `
+		select s.name, s.address, s.method, header, body ,s.access_level, s.execution_time
+		from services s
+		join user_services us on s.id = us.service_id
+		where s.name=$1 and us.user_id=$2 and (s.access_level <=$3 OR s.access_level = 1);
+	`, serviceName, userID, roleId)
 	if err != nil {
-		return nil, err
+		return
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var serviceName string
-		err := rows.Scan(&serviceName)
-		if err != nil {
-			return nil, err
-		}
-		services = append(services, serviceName)
-	}
-
-	return services, nil
-}
-
-func (sr *ServicesRepository) GetServiceByName(ctx context.Context, serviceName string, roleID int, userId int) (serviceRes model.Service, err error) {
-
-	// q := `SELECT name,address,method,header,body,access_level,execution_time,allowed_users FROM services WHERE name = $1 order by id asc limit 1`
-
-	q := `
-	SELECT name,address,method,header,body,access_level,execution_time
-	FROM services
-	WHERE name = $1
-	AND (access_level = $2 and $3 = ANY(allowed_users));
-	`
-	rows, err := sr.DB.QueryContext(ctx, q, serviceName, roleID, userId)
-	if err != nil {
-		return model.Service{}, err
-	}
-
-	var header, body string
-	for rows.Next() {
-		var service model.Service
-		err := rows.Scan(
-			&service.Name, &service.Address, &service.Method,
-			&header, &body,
+	defer row.Close()
+	var header, body *string
+	for row.Next() {
+		err := row.Scan(
+			&service.Name, &service.Address, &service.Method, &header, &body,
 			&service.AccessLevel, &service.ExecutionTime,
 		)
 		if err != nil {
 			log.Fatal(err)
 		}
-		serviceRes = service
-	}
 
-	h, b, err := bodyHeader_deserializer(header, body)
-	if err != nil {
-		return model.Service{}, err
-	}
-	serviceRes.Header = h
-	serviceRes.Body = b
+		if header == nil {
+			header = new(string)
+			*header = "{}"
+		}
+		if body == nil {
+			body = new(string)
+			*body = "{}"
+		}
 
-	return serviceRes, nil
-}
-
-func (sr *ServicesRepository) GetServiceById(ctx context.Context, serviceId int, userId int, roleId int) (serviceRes model.Service, err error) {
-
-	q := `
-	SELECT name,address,method,header,body,access_level,execution_time
-	FROM services
-	WHERE id = $1
-	AND (access_level = $2 and $3 = ANY(allowed_users));
-	`
-
-	rows, err := sr.DB.QueryContext(ctx, q, serviceId)
-	if err != nil {
-		return model.Service{}, err
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		err := rows.Scan(&serviceRes.Name, &serviceRes.Address, &serviceRes.Method, &serviceRes.Header, &serviceRes.Body, &serviceRes.AccessLevel, &serviceRes.ExecutionTime)
+		h, b, err := bodyHeader_deserializer(*header, *body)
 		if err != nil {
 			return model.Service{}, err
 		}
+
+		service.Header = h
+		service.Body = b
+	}
+
+	return
+}
+
+func (sr *ServicesRepository) GetUserServices(ctx context.Context, roleID int, userId int) (serviceRes []model.Service, err error) {
+
+	q := `
+		select s.name, s.address, s.method, header, body ,s.access_level, s.execution_time
+		from services s
+		join user_services us on s.id = us.service_id
+		where us.user_id = $1 and (s.access_level <= $2 OR s.access_level = 1);
+	`
+	rows, err := sr.DB.QueryContext(ctx, q, userId, roleID)
+	if err != nil {
+		return []model.Service{}, err
+	}
+
+	var header, body *string
+	defer rows.Close()
+
+	for rows.Next() {
+		var service model.Service
+		err := rows.Scan(
+			&service.Name, &service.Address, &service.Method, &header, &body,
+			&service.AccessLevel, &service.ExecutionTime,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if header == nil {
+			header = new(string)
+			*header = "{}"
+		}
+		if body == nil {
+			body = new(string)
+			*body = "{}"
+		}
+
+		h, b, err := bodyHeader_deserializer(*header, *body)
+		if err != nil {
+			return []model.Service{}, err
+		}
+		service.Header = h
+		service.Body = b
+		serviceRes = append(serviceRes, service)
 	}
 
 	return serviceRes, nil
@@ -176,13 +184,13 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 
 	// check which fields have been filled
 	var fields []string
-	if serviceName != "" {
+	if *serviceName != "" {
 		fields = append(fields, "name")
 	}
-	if serviceAddress != "" {
+	if *serviceAddress != "" {
 		fields = append(fields, "address")
 	}
-	if serviceMethod != "" {
+	if *serviceMethod != "" {
 		fields = append(fields, "method")
 	}
 	if serviceHeader != nil {
@@ -194,13 +202,13 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 	if serviceAccessLevel >= 0 {
 		fields = append(fields, "accesslevel")
 	}
-	if serviceExecutionTime != 0 {
+	if *serviceExecutionTime != 0 {
 		fields = append(fields, "executiontime")
 	}
 
 	// write query based on fields
 	switch {
-	case serviceName != "":
+	case *serviceName != "":
 		q := `UPDATE services SET `
 		for i, field := range fields {
 			if i == len(fields)-1 {
@@ -283,28 +291,15 @@ func (sr *ServicesRepository) Update(ctx context.Context, service model.Service)
 }
 
 func (sr *ServicesRepository) Delete(ctx context.Context, service model.Service) error {
-
-	// check id or name has been passed
-	name := service.Name
-	id := service.ID
-
-	qByName := `DELETE FROM services WHERE name = $1`
-	qById := `DELETE FROM services WHERE id = $1`
-
-	switch {
-	case name != "":
-		_, err := sr.DB.ExecContext(ctx, qByName, service.Name)
-		if err != nil {
-			return err
-		}
-	case id != 0:
-		_, err := sr.DB.ExecContext(ctx, qById, service.ID)
-		if err != nil {
-			return err
-		}
-	default:
-		return errors.New("id or name must be passed")
+	q := `DELETE FROM user_services WHERE service_id = (SELECT id FROM services WHERE name = $1);`
+	_, err := sr.DB.ExecContext(ctx, q, service.Name)
+	if err != nil {
+		return err
 	}
-
+	q = `DELETE FROM services WHERE name = $1;`
+	_, err = sr.DB.ExecContext(ctx, q, service.Name)
+	if err != nil {
+		return err
+	}
 	return nil
 }

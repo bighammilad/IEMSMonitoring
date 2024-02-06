@@ -6,14 +6,13 @@ import (
 
 type Service struct {
 	ID            int                    `json:"id,omitempty"`
-	Name          string                 `json:"name,omitempty"`
-	Address       string                 `json:"address,omitempty"`
-	Method        string                 `json:"method,omitempty"`
+	Name          *string                `json:"name,omitempty"`
+	Address       *string                `json:"address,omitempty"`
+	Method        *string                `json:"method,omitempty"`
 	Header        map[string]string      `json:"header,omitempty"`
 	Body          map[string]interface{} `json:"body,omitempty"`
 	AccessLevel   AccessLevel            `json:"access_level,omitempty"`
-	ExecutionTime int64                  `json:"execution_time,omitempty"`
-	AllowedUsers  []int                  `json:"allowed_users,omitempty"`
+	ExecutionTime *int64                 `json:"execution_time,omitempty"`
 }
 
 type ErrorReport struct {
