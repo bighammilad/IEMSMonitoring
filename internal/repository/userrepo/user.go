@@ -7,7 +7,7 @@ import (
 	"monitoring/pkg/postgres"
 )
 
-type IUser interface {
+type IUserRepo interface {
 	Create(ctx context.Context, username, hashPass string, role int) (ok bool, err error)
 	Read(ctx context.Context, username string) (user model.UserRes, err error)
 	ReadAll(ctx context.Context) (users []model.UserRes, err error)

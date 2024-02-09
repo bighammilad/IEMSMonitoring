@@ -19,7 +19,7 @@ type UserEndpoint struct {
 
 func NewUserEndpoint() *UserEndpoint {
 	db := userrepo.UserRepo{DB: GlobalPG}
-	var useruc useruc.UserUsecase = useruc.UserUsecase{IUser: &db}
+	var useruc useruc.UserUsecase = useruc.UserUsecase{IUserRepo: &db}
 	return &UserEndpoint{
 		UserUC: &useruc,
 	}

@@ -20,16 +20,21 @@ import (
 )
 
 type ServicesEndpoints struct {
-	ServicesUC usecase.ServicesUsecase
+	IServicesUC usecase.IServicesUsecase
+	IUseruc     useruc.IUserUsecase
 }
 
 func NewServicesEndpoints() *ServicesEndpoints {
-	var serviceuc usecase.ServicesUsecase = usecase.ServicesUsecase{
-		ServicesRepo: repository.ServicesRepository{DB: GlobalPG},
-		Useruc:       useruc.UserUsecase{IUser: &userrepo.UserRepo{DB: GlobalPG}}}
+
 	return &ServicesEndpoints{
-		ServicesUC: serviceuc,
+		IServicesUC: &usecase.ServicesUsecase{
+			IServicesRepo: &repository.ServicesRepository{DB: GlobalPG},
+		},
+		IUseruc: &useruc.UserUsecase{
+			IUserRepo: &userrepo.UserRepo{DB: GlobalPG},
+		},
 	}
+
 }
 
 func (se *ServicesEndpoints) ListServices(c echo.Context) error {
@@ -40,7 +45,7 @@ func (se *ServicesEndpoints) ListServices(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, "Forbidden")
 	}
 
-	services, err := se.ServicesUC.List(c.Request().Context())
+	services, err := se.IServicesUC.List(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -65,7 +70,7 @@ func (se *ServicesEndpoints) AddService(c echo.Context) error {
 	if len(userIds) == 0 {
 		return c.JSON(http.StatusBadRequest, "No users added")
 	}
-	err = se.ServicesUC.Add(c.Request().Context(), service, userIds)
+	err = se.IServicesUC.Add(c.Request().Context(), service, userIds)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -88,7 +93,7 @@ func (se *ServicesEndpoints) UpdateService(c echo.Context) error {
 	}
 
 	// update service
-	err = se.ServicesUC.Update(c.Request().Context(), service)
+	err = se.IServicesUC.Update(c.Request().Context(), service)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -123,7 +128,7 @@ func (se *ServicesEndpoints) DeleteService(c echo.Context) error {
 	service.Name = &req.Name
 
 	// delete service
-	err := se.ServicesUC.Delete(c.Request().Context(), service)
+	err := se.IServicesUC.Delete(c.Request().Context(), service)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -170,7 +175,7 @@ func (se *ServicesEndpoints) GetUserService(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
 
-	svc, err := se.ServicesUC.GetUserService(c.Request().Context(), requestBody.Name, int(jwtToken["role"].(float64)), userId)
+	svc, err := se.IServicesUC.GetUserService(c.Request().Context(), requestBody.Name, int(jwtToken["role"].(float64)), userId)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
@@ -200,7 +205,7 @@ func (se *ServicesEndpoints) GetUserServices(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
 
-	svc, err := se.ServicesUC.GetUserServices(c.Request().Context(), int(jwtToken["role"].(float64)), userId)
+	svc, err := se.IServicesUC.GetUserServices(c.Request().Context(), int(jwtToken["role"].(float64)), userId)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
@@ -355,7 +360,7 @@ func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Serv
 }
 
 func (se *ServicesEndpoints) getUsrId(c echo.Context, username string) (userId int, err error) {
-	userId, err = se.ServicesUC.Useruc.IUser.GetUsrId(c.Request().Context(), username)
+	userId, err = se.IUseruc.GetUsrId(c.Request().Context(), username)
 	if err != nil {
 		return -1, errors.New("error while getting user id")
 	}

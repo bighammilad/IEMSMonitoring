@@ -59,6 +59,12 @@ func New() (r *Rest, err error) {
 	restericted.POST("/service/add", service.AddService)
 	restericted.POST("/service/delete", service.DeleteService)
 
+	userServices := endpoints.NewUserServiceEndpoints()
+	restericted.GET("/user_services/readall", userServices.List)
+	restericted.GET("/user_services/read", userServices.GetUserService)
+	restericted.POST("/user_services/add", userServices.Add)
+	restericted.POST("/user_services/delete", userServices.Delete)
+
 	e.GET("/demo", demo)
 	e.GET("/test", test, echojwt.WithConfig(config))
 

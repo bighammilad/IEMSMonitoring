@@ -13,7 +13,7 @@ import (
 type IServicesRepository interface {
 	Add(ctx context.Context, service model.Service, userIds []int) error
 	GetUserService(ctx context.Context, serviceName string, userID, roleId int) (service model.Service, err error)
-	GetUserServices(ctx context.Context, roldId int, userId int) (model.Service, error)
+	GetUserServices(ctx context.Context, roleID int, userId int) (serviceRes []model.Service, err error)
 	List(ctx context.Context) ([]model.Service, error)
 	Update(ctx context.Context, service model.Service) error
 	Delete(ctx context.Context, service model.Service) error
