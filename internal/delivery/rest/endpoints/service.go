@@ -67,9 +67,9 @@ func (se *ServicesEndpoints) AddService(c echo.Context) error {
 	}
 
 	// add service
-	if len(userIds) == 0 {
-		return c.JSON(http.StatusBadRequest, "No users added")
-	}
+	// if len(userIds) == 0 {
+	// 	return c.JSON(http.StatusBadRequest, "No users added")
+	// }
 	err = se.IServicesUC.Add(c.Request().Context(), service, userIds)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
@@ -273,14 +273,14 @@ func (se *ServicesEndpoints) checkGetParams(c echo.Context) (service model.Servi
 func (se *ServicesEndpoints) checkPostParams(c echo.Context) (service model.Service, userIds []int, err error) {
 
 	type RequestBody struct {
-		Name          string `json:"name"`
-		Address       string `json:"address"`
-		Method        string `json:"method"`
-		Header        string `json:"header"`
-		Body          string `json:"body"`
-		AccessLevel   string `json:"accesslevel"`
-		ExecutionTime string `json:"execution_time"`
-		AllowedUsers  string `json:"users"`
+		Name          string `json:"name,omitempty"`
+		Address       string `json:"address,omitempty"`
+		Method        string `json:"method,omitempty"`
+		Header        string `json:"header,omitempty"`
+		Body          string `json:"body,omitempty"`
+		AccessLevel   string `json:"accesslevel,omitempty"`
+		ExecutionTime string `json:"execution_time,omitempty"`
+		AllowedUsers  string `json:"users,omitempty"`
 	}
 
 	var req RequestBody
