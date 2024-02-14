@@ -62,7 +62,7 @@ func (sr *ServicesRepository) Add(ctx context.Context, service model.Service, us
 
 func (sr *ServicesRepository) GetUserService(ctx context.Context, serviceName string, userID, roleId int) (service model.Service, err error) {
 	row, err := sr.DB.QueryContext(ctx, `
-		select s.name, s.address, s.method, header, body ,s.access_level, s.execution_time
+		select s.name, s.address, s.method, header, body ,s.access_level, s.execution_time, s.error_estimate	
 		from services s
 		join user_services us on s.id = us.service_id
 		where s.name=$1 and us.user_id=$2 and (s.access_level <=$3 OR s.access_level = 1);
@@ -75,7 +75,7 @@ func (sr *ServicesRepository) GetUserService(ctx context.Context, serviceName st
 	for row.Next() {
 		err := row.Scan(
 			&service.Name, &service.Address, &service.Method, &header, &body,
-			&service.AccessLevel, &service.ExecutionTime,
+			&service.AccessLevel, &service.ExecutionTime, &service.ErrorEstimate,
 		)
 		if err != nil {
 			log.Fatal(err)

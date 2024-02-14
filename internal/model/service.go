@@ -13,6 +13,7 @@ type Service struct {
 	Body          map[string]interface{} `json:"body,omitempty"`
 	AccessLevel   AccessLevel            `json:"access_level,omitempty"`
 	ExecutionTime *int64                 `json:"execution_time,omitempty"`
+	ErrorEstimate int
 }
 
 type ErrorReport struct {
